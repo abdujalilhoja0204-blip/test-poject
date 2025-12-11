@@ -1,0 +1,46 @@
+name: CI-CD Docker Deploy
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Kodni yuklab olish
+        uses: actions/checkout@v3
+
+      - name: Docker build
+        run: |
+          docker build -t test-project:latest .
+
+      - name: Docker image-ni arxivlash
+        run: |
+          docker save test-project:latest | gzip > test-project.tar.gz
+
+      - name: Docker image-ni serverga yuborish
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          source: "test-project.tar.gz"
+          target: "/opt/test-project/"
+
+      - name: Serverda deploy qilish
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            cd /opt/test-project
+            gunzip -f test-project.tar.gz
+            docker load < test-project.tar
+            docker compose down
+            docker compose up -d --force-recreate
+            echo "Deploy tugadi!"
